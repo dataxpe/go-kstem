@@ -1,4 +1,4 @@
-# kstem-go
+# go-kstem
 
 Quick & dirty golang port of Krovetz Stemmer aka kstem used in elasticsearch.
 
@@ -11,7 +11,7 @@ The code was not optimized for Go and is basically just a ton of copy & paste to
 
 ## LICENSE
 
-[WTFPL](http://www.wtfpl.net/).
+[WTFPL](http://www.wtfpl.net/)
 
 ## Acknowledgments
 
