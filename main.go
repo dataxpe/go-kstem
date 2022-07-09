@@ -42,11 +42,10 @@ package kstem
 import (
 	"strings"
 	"unicode"
-	"unicode/utf8"
 )
 
 type stemmer struct {
-	word []byte
+	word []rune
 	j    int
 	k    int
 	hash map[string]*dictEntry
@@ -71,8 +70,11 @@ func New() (kstem *stemmer) {
 }
 
 func (kstem *stemmer) Stemmer(term string) (result string) {
+	// convert string to runes
+	input := []rune(term)
+
 	stem_it := true
-	kstem.k = utf8.RuneCountInString(term) - 1
+	kstem.k = len(input) - 1
 	/* if the kstem.word is too long or too short, or not entirely
 	   alphabetic, just lowercase copy it into stem and return */
 	if (kstem.k <= 2-1) || (kstem.k >= MAX_WORD_LENGTH-1) {
@@ -80,7 +82,7 @@ func (kstem *stemmer) Stemmer(term string) (result string) {
 	} else {
 		for i := 0; i <= kstem.k; i++ {
 			// 8 bit characters can be a problem on windows
-			if !unicode.IsLetter(rune(term[i])) {
+			if uint32(input[i]) > 255 {
 				stem_it = false
 				break
 			}
@@ -93,14 +95,14 @@ func (kstem *stemmer) Stemmer(term string) (result string) {
 
 	/* 'kstem.word' is a pointer, global to this file, for manipulating the kstem.word in
 	   the buffer provided through the passed in pointer 'stem'. */
-	kstem.word = make([]byte, MAX_WORD_LENGTH)
+	kstem.word = make([]rune, MAX_WORD_LENGTH)
 
 	/* lowercase the local copy */
 	for i := 0; i <= kstem.k; i++ {
-		kstem.word[i] = byte(unicode.ToLower(rune(term[i])))
+		kstem.word[i] = unicode.ToLower(input[i])
 	}
 
-	kstem.word[kstem.k+1] = []byte{0}[0]
+	kstem.word[kstem.k+1] = []rune{0}[0]
 
 	/* the basic algorithm is to check the dictionary, and leave the kstem.word as
 	   it is if the kstem.word is found. Otherwise, recognize plurals, tense, etc.
@@ -218,18 +220,18 @@ func (kstem *stemmer) stemlength() int {
 }
 
 /* the last character of kstem.word */
-func (kstem *stemmer) final_c() byte {
+func (kstem *stemmer) final_c() rune {
 	return kstem.word[kstem.k]
 }
 
 /* the penultimate character of kstem.word */
-func (kstem *stemmer) penult_c() byte {
+func (kstem *stemmer) penult_c() rune {
 	return kstem.word[kstem.k-1]
 }
 
 /* getdep(kstem.word) returns NULL if kstem.word is not found in the dictionary,
    and returns a pointer to a dictEntry if found  */
-func (kstem *stemmer) getdep(word []byte) (entry *dictEntry) {
+func (kstem *stemmer) getdep(word []rune) (entry *dictEntry) {
 	/* don't bother to check for words that are short */
 	if len(word) <= 1 {
 		return nil
@@ -242,7 +244,7 @@ func (kstem *stemmer) getdep(word []byte) (entry *dictEntry) {
 
 /* lookup(kstem.word) returns false if kstem.word is not found in the dictionary,
    and true if it is */
-func (kstem *stemmer) lookup(word []byte) bool {
+func (kstem *stemmer) lookup(word []rune) bool {
 	if kstem.getdep(word) != nil {
 		return true
 	}
@@ -321,7 +323,7 @@ func (kstem *stemmer) ends_in(str string) bool {
 /* replace old suffix with str */
 func (kstem *stemmer) setsuff(str string, length int) {
 	kstem.word = kstem.word[:kstem.j+1]
-	kstem.word = append(kstem.word, str...)
+	kstem.word = append(kstem.word, []rune(str)...)
 
 	// add 0 to fix length
 	for i := len(kstem.word); i < MAX_WORD_LENGTH; i++ {
@@ -642,7 +644,7 @@ func (kstem *stemmer) ion_endings() {
 func (kstem *stemmer) er_and_or_endings() {
 	old_k := kstem.k
 
-	var word_char byte /* so we can remember if it was -er or -or */
+	var word_char rune /* so we can remember if it was -er or -or */
 
 	if kstem.ends_in("izer") { /* -ize is very productive, so accept it as the root */
 		kstem.word[kstem.j+4] = 0
@@ -937,7 +939,7 @@ func (kstem *stemmer) ment_endings() {
 /* handle -able and -ible */
 func (kstem *stemmer) ble_endings() {
 	old_k := kstem.k
-	var word_char byte
+	var word_char rune
 
 	if kstem.ends_in("ble") {
 		if !((kstem.word[kstem.j] == 'a') || (kstem.word[kstem.j] == 'i')) {
@@ -1050,7 +1052,7 @@ func (kstem *stemmer) ity_endings() {
 /* handle -able and -ible */
 func (kstem *stemmer) ble_ending() {
 	old_k := kstem.k
-	var word_char byte
+	var word_char rune
 
 	if kstem.ends_in("ble") {
 		if !(kstem.word[kstem.j] == 'a' || kstem.word[kstem.j] == 'i') {
@@ -1182,7 +1184,7 @@ func (kstem *stemmer) ncy_endings() {
 func (kstem *stemmer) nce_endings() {
 	old_k := kstem.k
 
-	var word_char byte
+	var word_char rune
 
 	if kstem.ends_in("nce") {
 		if !((kstem.word[kstem.j] == 'e') || (kstem.word[kstem.j] == 'a')) {
