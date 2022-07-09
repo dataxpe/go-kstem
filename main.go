@@ -42,6 +42,7 @@ package kstem
 import (
 	"strings"
 	"unicode"
+	"unicode/utf8"
 )
 
 type stemmer struct {
@@ -71,7 +72,7 @@ func New() (kstem *stemmer) {
 
 func (kstem *stemmer) Stemmer(term string) (result string) {
 	stem_it := true
-	kstem.k = len(term) - 1
+	kstem.k = utf8.RuneCountInString(term) - 1
 	/* if the kstem.word is too long or too short, or not entirely
 	   alphabetic, just lowercase copy it into stem and return */
 	if (kstem.k <= 2-1) || (kstem.k >= MAX_WORD_LENGTH-1) {
