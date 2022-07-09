@@ -45,10 +45,14 @@ import (
 )
 
 type stemmer struct {
+	hash map[string]*dictEntry
+}
+
+type stem struct {
 	word []rune
 	j    int
 	k    int
-	hash map[string]*dictEntry
+	hash *map[string]*dictEntry
 }
 
 type dictEntry struct {
@@ -59,30 +63,35 @@ type dictEntry struct {
 
 // New creates new stemmer instance,
 // which loads the dictionary into memory
-func New() (kstem *stemmer) {
-	kstem = &stemmer{
+func New() (kstemmer *stemmer) {
+	kstemmer = &stemmer{
 		hash: make(map[string]*dictEntry),
 	}
 
-	kstem.loadTables()
+	kstemmer.loadTables()
 
 	return
 }
 
-func (kstem *stemmer) Stemmer(term string) (result string) {
+func (kstemmer *stemmer) Stemmer(term string) (result string) {
 	// convert string to runes
 	input := []rune(term)
 
+	kstem := stem{
+		hash: &kstemmer.hash,
+	}
+
 	stem_it := true
-	kstem.k = len(input) - 1
+	kstem.k = len(term) - 1
 	/* if the kstem.word is too long or too short, or not entirely
 	   alphabetic, just lowercase copy it into stem and return */
 	if (kstem.k <= 2-1) || (kstem.k >= MAX_WORD_LENGTH-1) {
 		stem_it = false
 	} else {
-		for i := 0; i <= kstem.k; i++ {
-			// 8 bit characters can be a problem on windows
-			if uint32(input[i]) > 255 {
+		// 8 bit characters can be a problem on windows
+		// skip if non-alphabetic character found
+		for _, r := range term {
+			if (r < 'a' || r > 'z') && (r < 'A' || r > 'Z') {
 				stem_it = false
 				break
 			}
@@ -90,7 +99,7 @@ func (kstem *stemmer) Stemmer(term string) (result string) {
 	}
 
 	if !stem_it {
-		return term
+		return strings.ToLower(term)
 	}
 
 	/* 'kstem.word' is a pointer, global to this file, for manipulating the kstem.word in
@@ -210,41 +219,41 @@ func (kstem *stemmer) add_table_entry(variant string, word string, exc bool) {
 }
 
 /* the length of kstem.word (not an lvalue) */
-func (kstem *stemmer) wordlength() int {
+func (kstem *stem) wordlength() int {
 	return kstem.k + 1
 }
 
 /* length of stem within kstem.word (not an lvalue) */
-func (kstem *stemmer) stemlength() int {
+func (kstem *stem) stemlength() int {
 	return kstem.j + 1
 }
 
 /* the last character of kstem.word */
-func (kstem *stemmer) final_c() rune {
+func (kstem *stem) final_c() rune {
 	return kstem.word[kstem.k]
 }
 
 /* the penultimate character of kstem.word */
-func (kstem *stemmer) penult_c() rune {
+func (kstem *stem) penult_c() rune {
 	return kstem.word[kstem.k-1]
 }
 
 /* getdep(kstem.word) returns NULL if kstem.word is not found in the dictionary,
    and returns a pointer to a dictEntry if found  */
-func (kstem *stemmer) getdep(word []rune) (entry *dictEntry) {
+func (kstem *stem) getdep(word []rune) (entry *dictEntry) {
 	/* don't bother to check for words that are short */
 	if len(word) <= 1 {
 		return nil
 	}
 
-	entry, _ = kstem.hash[string(kstem.word[:kstem.k+1])]
+	entry, _ = (*kstem.hash)[string(kstem.word[:kstem.k+1])]
 
 	return
 }
 
 /* lookup(kstem.word) returns false if kstem.word is not found in the dictionary,
    and true if it is */
-func (kstem *stemmer) lookup(word []rune) bool {
+func (kstem *stem) lookup(word []rune) bool {
 	if kstem.getdep(word) != nil {
 		return true
 	}
@@ -252,7 +261,7 @@ func (kstem *stemmer) lookup(word []rune) bool {
 }
 
 /* cons() returns TRUE if kstem.word[i] is a consonant. */
-func (kstem *stemmer) cons(i int) bool {
+func (kstem *stem) cons(i int) bool {
 	ch := kstem.word[i]
 	if ch == 'a' || ch == 'e' || ch == 'i' || ch == 'o' || ch == 'u' {
 		return false
@@ -269,12 +278,12 @@ func (kstem *stemmer) cons(i int) bool {
 	}
 }
 
-func (kstem *stemmer) vowel(i int) bool {
+func (kstem *stem) vowel(i int) bool {
 	return !kstem.cons(i)
 }
 
 /* This routine is useful for ensuring that we don't stem acronyms */
-func (kstem *stemmer) vowelinstem() bool {
+func (kstem *stem) vowelinstem() bool {
 	for i := 0; i <= kstem.stemlength(); i++ {
 		if kstem.vowel(i) {
 			return true
@@ -284,7 +293,7 @@ func (kstem *stemmer) vowelinstem() bool {
 }
 
 /* return TRUE if kstem.word ends with a double consonant */
-func (kstem *stemmer) doublec(i int) bool {
+func (kstem *stem) doublec(i int) bool {
 	if i < 1 {
 		return false
 	}
@@ -302,7 +311,7 @@ func (kstem *stemmer) doublec(i int) bool {
    time.  Note that str must therefore no longer be padded with spaces in the calls
    to ends_in (as it was in the original version of this code).
 */
-func (kstem *stemmer) ends(str string, sufflength int) (match bool) {
+func (kstem *stem) ends(str string, sufflength int) (match bool) {
 	r := kstem.wordlength() - sufflength
 
 	match = strings.HasSuffix(string(kstem.word[:kstem.k+1]), str)
@@ -316,12 +325,12 @@ func (kstem *stemmer) ends(str string, sufflength int) (match bool) {
 	return match
 }
 
-func (kstem *stemmer) ends_in(str string) bool {
+func (kstem *stem) ends_in(str string) bool {
 	return kstem.ends(str, len(str))
 }
 
 /* replace old suffix with str */
-func (kstem *stemmer) setsuff(str string, length int) {
+func (kstem *stem) setsuff(str string, length int) {
 	kstem.word = kstem.word[:kstem.j+1]
 	kstem.word = append(kstem.word, []rune(str)...)
 
@@ -334,12 +343,12 @@ func (kstem *stemmer) setsuff(str string, length int) {
 	kstem.word[kstem.k+1] = 0
 }
 
-func (kstem *stemmer) setsuffix(str string) {
+func (kstem *stem) setsuffix(str string) {
 	kstem.setsuff(str, len(str))
 }
 
 /* convert plurals to singular form, and `-ies' to `y' */
-func (kstem *stemmer) plural() {
+func (kstem *stem) plural() {
 	if kstem.final_c() == 's' {
 		if kstem.ends_in("ies") {
 			kstem.word[kstem.j+3] = 0
@@ -390,7 +399,7 @@ func (kstem *stemmer) plural() {
 }
 
 /* convert past tense (-ed) to present, and `-ied' to `y' */
-func (kstem *stemmer) past_tense() {
+func (kstem *stem) past_tense() {
 	/* Handle words less than 5 letters with a direct mapping
 	   This prevents (fled -> fl).  */
 
@@ -469,7 +478,7 @@ func (kstem *stemmer) past_tense() {
 }
 
 /* handle `-ing' endings */
-func (kstem *stemmer) aspect() {
+func (kstem *stem) aspect() {
 	/* handle short words (aging -> age) via a direct mapping.  This
 	   prevents (thing -> the) in the version of this routine that
 	   ignores inflectional variants that are mentioned in the dictionary
@@ -545,7 +554,7 @@ func (kstem *stemmer) aspect() {
 
 /* this routine deals with -ion, -ition, -ation, -ization, and -ication.  The
    -ization ending is always converted to -ize */
-func (kstem *stemmer) ion_endings() {
+func (kstem *stem) ion_endings() {
 	old_k := kstem.k
 
 	if kstem.ends_in("ization") { /* the -ize ending is very productive, so simply accept it as the root */
@@ -641,7 +650,7 @@ func (kstem *stemmer) ion_endings() {
 /* this routine deals with -er, -or, -ier, and -eer.  The -izer ending is always converted to
    -ize */
 
-func (kstem *stemmer) er_and_or_endings() {
+func (kstem *stem) er_and_or_endings() {
 	old_k := kstem.k
 
 	var word_char rune /* so we can remember if it was -er or -or */
@@ -711,7 +720,7 @@ func (kstem *stemmer) er_and_or_endings() {
    Sometimes this will temporarily leave us with a non-kstem.word (e.g., heuristically
    maps to heuristical), but then the -al is removed in the next step.  */
 
-func (kstem *stemmer) ly_endings() {
+func (kstem *stem) ly_endings() {
 	old_k := kstem.k
 
 	if kstem.ends_in("ly") {
@@ -759,7 +768,7 @@ func (kstem *stemmer) ly_endings() {
 /* this routine deals with -al endings.  Some of the endings from the previous routine
    are finished up here.  */
 
-func (kstem *stemmer) al_endings() {
+func (kstem *stem) al_endings() {
 	old_k := kstem.k
 
 	if kstem.ends_in("al") {
@@ -835,7 +844,7 @@ func (kstem *stemmer) al_endings() {
 /* this routine deals with -ive endings.  It normalizes some of the
    -ative endings directly, and also maps some -ive endings to -ion. */
 
-func (kstem *stemmer) ive_endings() {
+func (kstem *stem) ive_endings() {
 	old_k := kstem.k
 
 	if kstem.ends_in("ive") {
@@ -886,7 +895,7 @@ func (kstem *stemmer) ive_endings() {
 
 /* this routine deals with -ize endings. */
 
-func (kstem *stemmer) ize_endings() {
+func (kstem *stem) ize_endings() {
 	old_k := kstem.k
 
 	if kstem.ends_in("ize") {
@@ -921,7 +930,7 @@ func (kstem *stemmer) ize_endings() {
 
 /* this routine deals with -ment endings. */
 
-func (kstem *stemmer) ment_endings() {
+func (kstem *stem) ment_endings() {
 	old_k := kstem.k
 
 	if kstem.ends_in("ment") {
@@ -937,7 +946,7 @@ func (kstem *stemmer) ment_endings() {
 }
 
 /* handle -able and -ible */
-func (kstem *stemmer) ble_endings() {
+func (kstem *stem) ble_endings() {
 	old_k := kstem.k
 	var word_char rune
 
@@ -989,7 +998,7 @@ func (kstem *stemmer) ble_endings() {
    and -ality, even without checking the dictionary because they are so
    productive.  The first two are mapped to -ble, and the -ity is remove
    for the latter */
-func (kstem *stemmer) ity_endings() {
+func (kstem *stem) ity_endings() {
 	old_k := kstem.k
 
 	if kstem.ends_in("ity") {
@@ -1050,7 +1059,7 @@ func (kstem *stemmer) ity_endings() {
 }
 
 /* handle -able and -ible */
-func (kstem *stemmer) ble_ending() {
+func (kstem *stem) ble_ending() {
 	old_k := kstem.k
 	var word_char rune
 
@@ -1099,7 +1108,7 @@ func (kstem *stemmer) ble_ending() {
 }
 
 /* handle -ness */
-func (kstem *stemmer) ness_endings() {
+func (kstem *stem) ness_endings() {
 	if kstem.ends_in("ness") { /* this is a very productive endings, so just accept it */
 		kstem.word[kstem.j+1] = 0
 		kstem.k = kstem.j
@@ -1111,7 +1120,7 @@ func (kstem *stemmer) ness_endings() {
 }
 
 /* handle -ism */
-func (kstem *stemmer) ism_endings() {
+func (kstem *stem) ism_endings() {
 	if kstem.ends_in("ism") { /* this is a very productive ending, so just accept it */
 		kstem.word[kstem.j+1] = 0
 		kstem.k = kstem.j
@@ -1123,7 +1132,7 @@ func (kstem *stemmer) ism_endings() {
    also the only place we try *expanding* an ending, -ic -> -ical.
    This is to handle cases like `canonic' -> `canonical' */
 
-func (kstem *stemmer) ic_endings() {
+func (kstem *stem) ic_endings() {
 	if kstem.ends_in("ic") {
 		kstem.word[kstem.j+3] = 'a' /* try converting -ic to -ical */
 		kstem.word[kstem.j+4] = 'l'
@@ -1160,7 +1169,7 @@ func (kstem *stemmer) ic_endings() {
 }
 
 /* handle -ency and -ancy */
-func (kstem *stemmer) ncy_endings() {
+func (kstem *stem) ncy_endings() {
 	if kstem.ends_in("ncy") {
 		if !((kstem.word[kstem.j] == 'e') || (kstem.word[kstem.j] == 'a')) {
 			return
@@ -1181,7 +1190,7 @@ func (kstem *stemmer) ncy_endings() {
 }
 
 /* handle -ence and -ance */
-func (kstem *stemmer) nce_endings() {
+func (kstem *stem) nce_endings() {
 	old_k := kstem.k
 
 	var word_char rune
