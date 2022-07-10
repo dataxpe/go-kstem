@@ -7089,6 +7089,7 @@ navigators navigator
 navy navy
 nay nay
 nays nay
+ncy ncy
 near near
 nearer near
 nearest nearest

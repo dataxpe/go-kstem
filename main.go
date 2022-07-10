@@ -316,6 +316,10 @@ func (kstem *stem) ends(str string, sufflength int) (match bool) {
 
 	match = strings.HasSuffix(string(kstem.word[:kstem.k+1]), str)
 
+	if sufflength > kstem.k {
+		return false
+	}
+
 	/* use r-1 since kstem.j is an index rather than length */
 	if match {
 		kstem.j = r - 1
